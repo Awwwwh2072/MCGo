@@ -1,0 +1,28 @@
+# McGo ignore file – gitignore-style patterns
+# Files and directories matching these patterns are excluded from sync.
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Version control
+.git/
+.gitignore
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Temp files
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+# IDE
+.vscode/
+.idea/
+*.suo

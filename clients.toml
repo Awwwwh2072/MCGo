@@ -1,0 +1,6 @@
+# McGo client public key registry
+# Register each client here so the server can verify their identity.
+#
+# [client.YOUR_CLIENT_ID]
+# public_key_path = "keys/client_public.pem"
+# display_name = "My Client"

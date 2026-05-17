@@ -1,0 +1,24 @@
+[server]
+# MQTT broker connection
+mqtt_host = "localhost"
+mqtt_port = 1883
+mqtt_tls = false
+mqtt_username = ""
+mqtt_password = ""
+
+# File system
+scan_directory = "./files"
+ignore_file = ".mcgoignore"
+
+# Encryption key (32 bytes, base64-encoded)
+# Generate with: python -m mcgo server --gen-encryption-key
+encryption_key = ""
+
+[auth]
+server_private_key = "keys/server_private.pem"
+clients_file = "clients.toml"
+challenge_timeout_seconds = 30
+
+[logging]
+level = "INFO"
+file = ""

@@ -1,0 +1,26 @@
+[client]
+client_id = "default"
+display_name = "Default Client"
+
+# MQTT broker connection
+mqtt_host = "localhost"
+mqtt_port = 1883
+mqtt_tls = false
+mqtt_username = ""
+mqtt_password = ""
+
+# File system
+sync_directory = "./sync"
+ignore_file = ".mcgoignore"
+
+# Encryption key (must match server)
+encryption_key = ""
+
+[auth]
+client_private_key = "keys/client_private.pem"
+server_public_key = "keys/server_public.pem"
+auth_timeout_seconds = 30
+
+[logging]
+level = "INFO"
+file = ""
