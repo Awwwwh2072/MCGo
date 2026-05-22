@@ -22,6 +22,10 @@ _COMPRESSED_EXTENSIONS: set[str] = {
 
 _CHUNK_SIZE = 65536  # 64KB read chunks for hashing
 
+# Server-side `clientmods/` maps to client-side `mods/` for diff and download paths.
+_REMOTE_CLIENTMODS_PREFIX = "clientmods/"
+_LOCAL_MODS_PREFIX = "mods/"
+
 
 class FileTree:
     """Scans a directory and produces/comparses JSON file trees."""
@@ -101,20 +105,28 @@ class FileTree:
         return json.loads(json_str)
 
     @staticmethod
+    def map_remote_to_local(remote_path: str) -> str:
+        """Map a path from the server file tree to the client local relative path."""
+        if remote_path.startswith(_REMOTE_CLIENTMODS_PREFIX):
+            return _LOCAL_MODS_PREFIX + remote_path[len(_REMOTE_CLIENTMODS_PREFIX):]
+        return remote_path
+
+    @staticmethod
     def diff(local_tree: dict, remote_tree: dict) -> list[dict]:
         """Compare local tree against remote tree.
         Returns a list of entries that need to be downloaded:
-        [{"path": str, "reason": "missing"|"changed"}, ...]
+        [{"server_path": str, "local_path": str, "reason": "missing"|"changed"}, ...]
         """
         to_fetch: list[dict] = []
         remote_files: dict = remote_tree.get("files", {})
 
         for path, remote_info in remote_files.items():
-            local_info = local_tree.get("files", {}).get(path)
+            local_path = FileTree.map_remote_to_local(path)
+            local_info = local_tree.get("files", {}).get(local_path)
             if local_info is None:
-                to_fetch.append({"path": path, "reason": "missing"})
+                to_fetch.append({"server_path": path, "local_path": local_path, "reason": "missing"})
             elif local_info.get("sha256") != remote_info.get("sha256"):
-                to_fetch.append({"path": path, "reason": "changed"})
+                to_fetch.append({"server_path": path, "local_path": local_path, "reason": "changed"})
 
         return to_fetch
 

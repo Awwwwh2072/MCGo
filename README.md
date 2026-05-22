@@ -1,6 +1,7 @@
 # McGo - MQTT File Synchronization System
 
 基于 MQTT 协议的文件同步系统。服务端扫描目录生成 JSON 文件树，客户端拉取对比后自动下载缺失或变更的文件。支持 RSA 认证、AES-256-GCM 加密、压缩传输。
+对于可以通过M站或者F站等源下载的，推荐不直接从服务器拉取资源。
 
 ## 环境要求
 
@@ -91,6 +92,46 @@ Client                              Server
 3. 客户端对比本地与远程文件树，找出缺失/变更的文件
 4. 客户端请求文件 → 服务端压缩(如需要)+加密 → 分块传输 → 客户端解密解压写入
 
+### 路径映射（`clientmods` → `mods`）
+
+服务端同步目录下的 `clientmods/` 在客户端对应为 `sync_directory/mods/`：比对哈希时使用该映射，下载时仍向服务端请求 `clientmods/...` 路径，文件写入本地 `mods/...`。其他路径仍为一对一同步。
+
+## C# 嵌入客户端（.NET 8）
+
+仓库内提供原生类库 [`csharp/McGo.Client/McGo.Client.csproj`](csharp/McGo.Client/McGo.Client.csproj)，协议与 Python 客户端一致，适合在 C# 宿主中直接引用（无需 Python 运行时）。
+
+### 构建
+
+```bash
+dotnet build csharp/McGo.Client/McGo.Client.csproj -c Release
+```
+
+### 宿主引用
+
+在宿主 `.csproj` 中添加：
+
+```xml
+<ItemGroup>
+  <ProjectReference Include="path/to/McGo/csharp/McGo.Client/McGo.Client.csproj" />
+</ItemGroup>
+```
+
+### 调用示例
+
+```csharp
+using McGo.Client;
+
+await using var client = new McGoClient(@"C:\path\to\mcgo_client.toml");
+var result = await client.SyncAsync(cancellationToken: ct, timeout: TimeSpan.FromSeconds(60));
+// result.Success, result.FilesDownloaded, result.FilesFailed, result.Errors
+```
+
+配置文件仍使用根目录的 `mcgo_client.toml`（与 Python 客户端相同）。可选注入 `Microsoft.Extensions.Logging.ILogger` 构造函数第二参数。
+
+### 与 Python 客户端的关系
+
+- 推荐使用本机 **McGo.Client** 做嵌入；若已有 Python.NET 环境，也可继续用下文「C# 互操作」方式调用 Python 模块。
+
 ### 加密方案
 
 - **对称加密**: AES-256-GCM，每块独立 nonce，AAD 绑定传输上下文
@@ -151,9 +192,9 @@ logs/**/debug.log  # ** 匹配任意层级
 | `client/{id}/file_request` | C→S | 文件请求 |
 | `client/{id}/status` | C→S | 客户端心跳 |
 
-## C# 互操作
+## C# 互操作（Python.NET）
 
-`McGoClient` 类可独立实例化，供 Python.NET 调用：
+若希望在 .NET 进程中直接调用 Python 实现的 `McGoClient`（需安装 Python 与 `mcgo` 包），可使用 Python.NET：
 
 ```csharp
 using Python.Runtime;

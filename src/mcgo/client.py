@@ -308,11 +308,11 @@ class McGoClient:
 
         logger.info(f"Need to fetch {len(to_fetch)} files")
         for entry in to_fetch:
-            self._request_file(entry["path"])
+            self._request_file(entry["server_path"], entry["local_path"])
 
-    def _request_file(self, file_path: str) -> None:
+    def _request_file(self, server_path: str, local_path: str) -> None:
         file_id = new_file_id()
-        request = serialize_message({"file_id": file_id, "path": file_path})
+        request = serialize_message({"file_id": file_id, "path": server_path})
         self._mqtt.publish(
             client_file_request_topic(self._config.client_id),
             request,
@@ -321,7 +321,13 @@ class McGoClient:
 
         with self._buffer_lock:
             self._chunk_buffers[file_id] = {
-                "_meta": {"path": file_path, "chunk_count": 0, "compressed": False},
+                "_meta": {
+                    "server_path": server_path,
+                    "local_path": local_path,
+                    "path": server_path,
+                    "chunk_count": 0,
+                    "compressed": False,
+                },
                 "_received": 0,
             }
 
@@ -330,9 +336,16 @@ class McGoClient:
     def _handle_file_meta(self, file_id: str, payload: dict) -> None:
         with self._buffer_lock:
             if file_id in self._chunk_buffers:
-                self._chunk_buffers[file_id]["_meta"] = payload
-                # Pre-allocate space for expected chunks
-                self._chunk_buffers[file_id]["_expected"] = payload.get("chunk_count", 0)
+                old = self._chunk_buffers[file_id].get("_meta", {})
+                local_path = old.get("local_path")
+                server_path = old.get("server_path")
+                merged = dict(payload)
+                if local_path is not None:
+                    merged["local_path"] = local_path
+                if server_path is not None:
+                    merged["server_path"] = server_path
+                self._chunk_buffers[file_id]["_meta"] = merged
+                self._chunk_buffers[file_id]["_expected"] = merged.get("chunk_count", 0)
         logger.debug(f"File meta: {payload.get('path')} ({payload.get('chunk_count')} chunks)")
 
     def _handle_file_chunk(self, file_id: str, seq: int, payload: bytes) -> None:
@@ -354,7 +367,7 @@ class McGoClient:
         buf.pop("_received", None)
         buf.pop("_expected", None)
 
-        file_path = meta.get("path", "unknown")
+        file_path = meta.get("local_path") or meta.get("path", "unknown")
         compressed = meta.get("compressed", False)
 
         # Reassemble chunks
@@ -386,7 +399,7 @@ class McGoClient:
                 self._check_sync_complete()
                 return
 
-        # Write to disk
+        # Write to disk (use local_path mapping, e.g. server clientmods/ -> client mods/)
         dest = os.path.join(self._config.sync_directory, file_path)
         try:
             os.makedirs(os.path.dirname(dest), exist_ok=True)
@@ -404,7 +417,8 @@ class McGoClient:
         with self._buffer_lock:
             buf = self._chunk_buffers.pop(file_id, None)
         if buf:
-            path = buf.get("_meta", {}).get("path", "unknown")
+            meta = buf.get("_meta", {})
+            path = meta.get("local_path") or meta.get("path", "unknown")
             logger.warning(f"File transfer aborted: {path}")
             self._sync_result.files_failed.append(path)
         self._check_sync_complete()

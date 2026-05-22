@@ -1,0 +1,13 @@
+d:\Project\PythonProject\McGo\csharp\McGo.Client\obj\Release\net8.0\McGo.Client.csproj.AssemblyReference.cache
+d:\Project\PythonProject\McGo\csharp\McGo.Client\obj\Release\net8.0\McGo.Client.GeneratedMSBuildEditorConfig.editorconfig
+d:\Project\PythonProject\McGo\csharp\McGo.Client\obj\Release\net8.0\McGo.Client.AssemblyInfoInputs.cache
+d:\Project\PythonProject\McGo\csharp\McGo.Client\obj\Release\net8.0\McGo.Client.AssemblyInfo.cs
+d:\Project\PythonProject\McGo\csharp\McGo.Client\obj\Release\net8.0\McGo.Client.csproj.CoreCompileInputs.cache
+d:\Project\PythonProject\McGo\csharp\McGo.Client\obj\Release\net8.0\McGo.Client.sourcelink.json
+d:\Project\PythonProject\McGo\csharp\McGo.Client\bin\Release\net8.0\McGo.Client.deps.json
+d:\Project\PythonProject\McGo\csharp\McGo.Client\bin\Release\net8.0\McGo.Client.dll
+d:\Project\PythonProject\McGo\csharp\McGo.Client\bin\Release\net8.0\McGo.Client.pdb
+d:\Project\PythonProject\McGo\csharp\McGo.Client\obj\Release\net8.0\McGo.Client.dll
+d:\Project\PythonProject\McGo\csharp\McGo.Client\obj\Release\net8.0\refint\McGo.Client.dll
+d:\Project\PythonProject\McGo\csharp\McGo.Client\obj\Release\net8.0\McGo.Client.pdb
+d:\Project\PythonProject\McGo\csharp\McGo.Client\obj\Release\net8.0\ref\McGo.Client.dll
