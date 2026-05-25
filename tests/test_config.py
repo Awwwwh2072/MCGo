@@ -130,6 +130,42 @@ encryption_key = ""
         with pytest.raises(ConfigError, match="must not be empty"):
             load_server_config(str(p))
 
+    def test_scan_directories_loaded(self, tmp_path, encryption_key_str, temp_keys_dir):
+        content = f"""[server]
+encryption_key = "{encryption_key_str}"
+scan_directories = ["./files", "./mods"]
+"""
+        p = tmp_path / "multi.toml"
+        p.write_text(content, encoding="utf-8")
+        cfg = load_server_config(str(p))
+        assert len(cfg.scan_directories) == 2
+        assert cfg.get_scan_directories() == cfg.scan_directories
+
+    def test_scan_directories_falls_back_to_single(self, server_config_path):
+        cfg = load_server_config(server_config_path)
+        assert cfg.scan_directories == []
+        assert len(cfg.get_scan_directories()) == 1
+
+    def test_scan_directories_duplicate_basename_raises(self, tmp_path, encryption_key_str, temp_keys_dir):
+        content = f"""[server]
+encryption_key = "{encryption_key_str}"
+scan_directories = ["./foo/game", "./bar/game"]
+"""
+        p = tmp_path / "dup.toml"
+        p.write_text(content, encoding="utf-8")
+        with pytest.raises(ConfigError, match="duplicate basenames"):
+            load_server_config(str(p))
+
+    def test_scan_directories_not_list_raises(self, tmp_path, encryption_key_str, temp_keys_dir):
+        content = f"""[server]
+encryption_key = "{encryption_key_str}"
+scan_directories = "not_a_list"
+"""
+        p = tmp_path / "bad_type.toml"
+        p.write_text(content, encoding="utf-8")
+        with pytest.raises(ConfigError, match="must be a list"):
+            load_server_config(str(p))
+
 
 # ---------------------------------------------------------------------------
 # Client config loading

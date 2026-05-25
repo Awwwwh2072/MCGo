@@ -22,6 +22,7 @@ class ServerConfig:
     mqtt_username: str = ""
     mqtt_password: str = ""
     scan_directory: str = "./files"
+    scan_directories: list[str] = field(default_factory=list)
     ignore_file: str = ".mcgoignore"
     encryption_key: str = ""
     server_private_key: str = "keys/server_private.pem"
@@ -29,6 +30,13 @@ class ServerConfig:
     challenge_timeout_seconds: int = 30
     log_level: str = "INFO"
     log_file: str = ""
+
+    def get_scan_directories(self) -> list[str]:
+        """Return effective scan directories. Multi-directory mode when
+        scan_directories is non-empty; otherwise fall back to scan_directory."""
+        if self.scan_directories:
+            return self.scan_directories
+        return [self.scan_directory]
 
 
 @dataclass
@@ -91,6 +99,19 @@ def load_server_config(path: str) -> ServerConfig:
     auth_raw = raw.get("auth", {})
     logging_raw = raw.get("logging", {})
 
+    # Parse scan directories (multi-directory mode) or fall back to scan_directory
+    raw_dirs = server_raw.get("scan_directories", [])
+    if raw_dirs:
+        if not isinstance(raw_dirs, list):
+            raise ConfigError("scan_directories must be a list of paths")
+        resolved_dirs = [_resolve_path(d, config_dir) for d in raw_dirs]
+        basenames = [os.path.basename(os.path.normpath(d)) for d in resolved_dirs]
+        if len(basenames) != len(set(basenames)):
+            raise ConfigError("scan_directories contains duplicate basenames; use unique directory names")
+        scan_dirs = resolved_dirs
+    else:
+        scan_dirs = []
+
     cfg = ServerConfig(
         mqtt_host=server_raw.get("mqtt_host", "localhost"),
         mqtt_port=server_raw.get("mqtt_port", 1883),
@@ -98,6 +119,7 @@ def load_server_config(path: str) -> ServerConfig:
         mqtt_username=server_raw.get("mqtt_username", ""),
         mqtt_password=server_raw.get("mqtt_password", ""),
         scan_directory=_resolve_path(server_raw.get("scan_directory", "./files"), config_dir),
+        scan_directories=scan_dirs,
         ignore_file=server_raw.get("ignore_file", ".mcgoignore"),
         encryption_key=server_raw.get("encryption_key", ""),
         server_private_key=_resolve_path(auth_raw.get("server_private_key", "keys/server_private.pem"), config_dir),
@@ -189,7 +211,10 @@ mqtt_username = ""
 mqtt_password = ""
 
 # File system
+# Single directory mode:
 scan_directory = "./files"
+# Multi-directory mode (uncomment to use instead of scan_directory):
+# scan_directories = ["./files", "./mods"]
 ignore_file = ".mcgoignore"
 
 # Encryption key (32 bytes, base64-encoded)

@@ -11,7 +11,7 @@ import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, NamedTuple, Optional
 
 import paho.mqtt.client as mqtt
 
@@ -44,6 +44,11 @@ from .watcher import DirectoryWatcher
 logger = logging.getLogger("mcgo.server")
 
 
+class _ScanEntry(NamedTuple):
+    path: str
+    prefix: str  # empty string = single-directory mode (no prefix)
+
+
 class McGoServer:
     """MQTT-based file synchronization server."""
 
@@ -53,12 +58,27 @@ class McGoServer:
 
         self._encryption_key = base64.b64decode(self._config.encryption_key)
         self._auth = ServerAuth(self._config.clients_file, self._config.challenge_timeout_seconds)
-        self._tree = FileTree(self._config.scan_directory)
-        self._ignore = IgnoreRules(
-            os.path.join(os.path.dirname(config_path), self._config.ignore_file),
-            self._config.scan_directory,
-            role="server",
-        )
+
+        # Build scan entries from config
+        scan_dirs = self._config.get_scan_directories()
+        if len(scan_dirs) == 1:
+            self._scan_entries = [_ScanEntry(path=scan_dirs[0], prefix="")]
+        else:
+            self._scan_entries = [
+                _ScanEntry(path=d, prefix=os.path.basename(os.path.normpath(d)))
+                for d in scan_dirs
+            ]
+
+        config_dir = os.path.dirname(config_path)
+        self._trees = [FileTree(e.path) for e in self._scan_entries]
+        self._ignore_rules = [
+            IgnoreRules(
+                os.path.join(config_dir, self._config.ignore_file),
+                e.path,
+                role="server",
+            )
+            for e in self._scan_entries
+        ]
         self._file_tree: dict = {}
         self._tree_lock = threading.Lock()
         self._executor = ThreadPoolExecutor(max_workers=4)
@@ -70,7 +90,7 @@ class McGoServer:
         self._mqtt.on_message = self._on_message
         self._mqtt.on_disconnect = self._on_disconnect
 
-        self._watcher: Optional[DirectoryWatcher] = None
+        self._watchers: list[DirectoryWatcher] = []
 
     def _setup_logging(self) -> None:
         level = getattr(logging, self._config.log_level.upper(), logging.INFO)
@@ -86,12 +106,13 @@ class McGoServer:
     # --- Lifecycle ---
 
     def start(self) -> None:
-        """Start the server: connect to broker, build initial tree, start watcher, enter event loop."""
-        logger.info(f"Starting McGo server, scanning: {self._config.scan_directory}")
+        """Start the server: connect to broker, build initial tree, start watchers, enter event loop."""
+        dirs_display = ", ".join(e.path for e in self._scan_entries)
+        logger.info(f"Starting McGo server, scanning: {dirs_display}")
 
-        # Ensure scan directory exists
-        scan_dir = Path(self._config.scan_directory)
-        scan_dir.mkdir(parents=True, exist_ok=True)
+        # Ensure scan directories exist
+        for entry in self._scan_entries:
+            Path(entry.path).mkdir(parents=True, exist_ok=True)
 
         # Build initial file tree
         self._build_tree()
@@ -106,14 +127,16 @@ class McGoServer:
         self._mqtt.loop_start()
         self._running = True
 
-        # Start filesystem watcher
-        self._watcher = DirectoryWatcher(
-            self._config.scan_directory,
-            callback=self._on_filesystem_changed,
-            ignore_rules=self._ignore,
-            debounce_seconds=1.0,
-        )
-        self._watcher.start()
+        # Start filesystem watchers (one per scan entry)
+        for entry, ignore in zip(self._scan_entries, self._ignore_rules):
+            w = DirectoryWatcher(
+                entry.path,
+                callback=self._on_filesystem_changed,
+                ignore_rules=ignore,
+                debounce_seconds=1.0,
+            )
+            w.start()
+            self._watchers.append(w)
         logger.info("McGo server is running. Press Ctrl+C to stop.")
 
         # Service loop – handle timeouts and keep alive
@@ -129,8 +152,9 @@ class McGoServer:
         logger.info("Shutting down McGo server...")
         self._running = False
 
-        if self._watcher:
-            self._watcher.stop()
+        for w in self._watchers:
+            w.stop()
+        self._watchers.clear()
 
         # Publish empty announce to clear retained
         try:
@@ -252,14 +276,30 @@ class McGoServer:
         logger.info(f"File request from {client_id}: {file_path} (fid={file_id})")
         self._executor.submit(self._send_file, client_id, file_id, file_path)
 
+    def _resolve_scan_entry(self, file_path: str) -> Optional[_ScanEntry]:
+        """Find the scan entry that owns *file_path* based on its prefix."""
+        if len(self._scan_entries) == 1 and not self._scan_entries[0].prefix:
+            return self._scan_entries[0]
+        for entry in self._scan_entries:
+            if file_path == entry.prefix or file_path.startswith(entry.prefix + "/"):
+                return entry
+        return None
+
     def _send_file(self, client_id: str, file_id: str, file_path: str) -> None:
         """Load, compress, encrypt, chunk, and send a file to a client."""
-        full_path = os.path.join(self._config.scan_directory, file_path)
+        entry = self._resolve_scan_entry(file_path)
+        if entry is None:
+            logger.warning(f"Unknown path prefix in file request: {file_path}")
+            self._mqtt.publish(server_file_abort_topic(file_id), b"", qos=1)
+            return
+
+        rel_path = file_path[len(entry.prefix) + 1:] if entry.prefix else file_path
+        full_path = os.path.join(entry.path, rel_path)
 
         # Security: prevent path traversal
         real_full = os.path.realpath(full_path)
-        real_scan = os.path.realpath(self._config.scan_directory)
-        if not real_full.startswith(real_scan + os.sep) and real_full != real_scan:
+        real_base = os.path.realpath(entry.path)
+        if not real_full.startswith(real_base + os.sep) and real_full != real_base:
             logger.warning(f"Path traversal attempt: {file_path}")
             self._mqtt.publish(server_file_abort_topic(file_id), b"", qos=1)
             return
@@ -327,12 +367,31 @@ class McGoServer:
     # --- File tree management ---
 
     def _build_tree(self) -> None:
-        """Scan the directory and rebuild the file tree."""
+        """Scan all directories and merge into a single file tree."""
         try:
-            new_tree = self._tree.scan(self._ignore)
+            merged_files: dict = {}
+            merged_dirs: set = set()
+            for tree, entry, ignore in zip(self._trees, self._scan_entries, self._ignore_rules):
+                scanned = tree.scan(ignore)
+                if entry.prefix:
+                    for path, info in scanned.get("files", {}).items():
+                        merged_files[f"{entry.prefix}/{path}"] = info
+                    for d in scanned.get("directories", []):
+                        merged_dirs.add(f"{entry.prefix}/{d}")
+                else:
+                    merged_files.update(scanned.get("files", {}))
+                    merged_dirs.update(scanned.get("directories", []))
+
+            merged = {
+                "version": 1,
+                "timestamp": time.time(),
+                "base_path": self._scan_entries[0].path if len(self._scan_entries) == 1 else "multi",
+                "files": dict(sorted(merged_files.items())),
+                "directories": sorted(merged_dirs),
+            }
             with self._tree_lock:
-                self._file_tree = new_tree
-            logger.info(f"File tree rebuilt: {len(new_tree.get('files', {}))} files")
+                self._file_tree = merged
+            logger.info(f"File tree rebuilt: {len(merged.get('files', {}))} files")
         except Exception as e:
             logger.error(f"Failed to build file tree: {e}")
 
@@ -347,7 +406,7 @@ class McGoServer:
         with self._tree_lock:
             if not self._file_tree:
                 return
-            tree_json = self._tree.to_json(self._file_tree)
+            tree_json = self._trees[0].to_json(self._file_tree)
 
         self._mqtt.publish(TOPIC_SERVER_TREE, tree_json.encode("utf-8"), qos=0, retain=True)
 

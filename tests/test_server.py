@@ -265,6 +265,41 @@ class TestSendFile:
 
 
 # ---------------------------------------------------------------------------
+# Multi-directory file send
+# ---------------------------------------------------------------------------
+
+class TestMultiSendFile:
+    def test_routes_to_correct_directory(self, multi_server_instance, mock_mqtt, tmp_path):
+        # Create a file in the "files" scan entry
+        files_dir = tmp_path / "files"
+        (files_dir / "data.txt").write_text("from files dir", encoding="utf-8")
+        mock_mqtt.reset_mock()
+        multi_server_instance._send_file("testclient", "fid100", "files/data.txt")
+        meta_call = [c for c in mock_mqtt.publish.call_args_list
+                     if c[0][0] == server_file_meta_topic("fid100")]
+        assert len(meta_call) == 1
+
+    def test_routes_to_mods_directory(self, multi_server_instance, mock_mqtt, tmp_path):
+        mods_dir = tmp_path / "mods"
+        (mods_dir / "mod_info.txt").write_text("from mods dir", encoding="utf-8")
+        mock_mqtt.reset_mock()
+        multi_server_instance._send_file("testclient", "fid101", "mods/mod_info.txt")
+        meta_call = [c for c in mock_mqtt.publish.call_args_list
+                     if c[0][0] == server_file_meta_topic("fid101")]
+        assert len(meta_call) == 1
+
+    def test_unknown_prefix_aborts(self, multi_server_instance, mock_mqtt):
+        mock_mqtt.reset_mock()
+        multi_server_instance._send_file("testclient", "fid102", "unknown/file.txt")
+        mock_mqtt.publish.assert_called_with(server_file_abort_topic("fid102"), b"", qos=1)
+
+    def test_path_traversal_with_prefix(self, multi_server_instance, mock_mqtt):
+        mock_mqtt.reset_mock()
+        multi_server_instance._send_file("testclient", "fid103", "files/../../../etc/passwd")
+        mock_mqtt.publish.assert_called_with(server_file_abort_topic("fid103"), b"", qos=1)
+
+
+# ---------------------------------------------------------------------------
 # Tree management
 # ---------------------------------------------------------------------------
 
@@ -306,6 +341,34 @@ class TestTreeManagement:
         announce = deserialize_message(args[0][1])
         assert "server_id" in announce
         assert announce["version"] == "0.1.0"
+
+
+class TestMultiTreeManagement:
+    def test_build_tree_with_prefixes(self, multi_server_instance, tmp_path):
+        (tmp_path / "files" / "a.txt").write_text("file_a", encoding="utf-8")
+        (tmp_path / "mods" / "b.txt").write_text("file_b", encoding="utf-8")
+        multi_server_instance._build_tree()
+        tree = multi_server_instance._file_tree
+        assert "files" in tree
+        assert "files/a.txt" in tree["files"]
+        assert "mods/b.txt" in tree["files"]
+        assert tree.get("base_path") == "multi"
+
+    def test_build_tree_num_scan_entries(self, multi_server_instance):
+        assert len(multi_server_instance._scan_entries) == 2
+        assert len(multi_server_instance._trees) == 2
+        assert len(multi_server_instance._ignore_rules) == 2
+
+    def test_resolve_scan_entry(self, multi_server_instance):
+        e = multi_server_instance._resolve_scan_entry("files/data.txt")
+        assert e is not None
+        assert e.prefix == "files"
+        e2 = multi_server_instance._resolve_scan_entry("mods/data.txt")
+        assert e2 is not None
+        assert e2.prefix == "mods"
+
+    def test_resolve_scan_entry_unknown(self, multi_server_instance):
+        assert multi_server_instance._resolve_scan_entry("unknown/x.txt") is None
 
 
 # ---------------------------------------------------------------------------

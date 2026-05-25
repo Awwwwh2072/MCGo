@@ -97,6 +97,35 @@ file = ""
 
 
 @pytest.fixture
+def multi_server_config_path(tmp_path, temp_keys_dir, encryption_key_str):
+    """Write a multi-directory server TOML config and return its path."""
+    files_dir = tmp_path / "files"
+    mods_dir = tmp_path / "mods"
+    files_dir.mkdir(exist_ok=True)
+    mods_dir.mkdir(exist_ok=True)
+    content = f"""[server]
+mqtt_host = "localhost"
+mqtt_port = 1883
+mqtt_tls = false
+mqtt_username = ""
+mqtt_password = ""
+scan_directories = ["{files_dir.as_posix()}", "{mods_dir.as_posix()}"]
+ignore_file = ".mcgoignore"
+encryption_key = "{encryption_key_str}"
+
+[auth]
+server_private_key = "{temp_keys_dir.as_posix()}/server_private.pem"
+clients_file = "{tmp_path.as_posix()}/clients.toml"
+challenge_timeout_seconds = 30
+
+[logging]
+level = "DEBUG"
+file = ""
+"""
+    return _write_toml(tmp_path / "multi_server.toml", content)
+
+
+@pytest.fixture
 def client_config_path(tmp_path, temp_keys_dir, encryption_key_str):
     """Write a valid client TOML config and return its path."""
     content = f"""[client]
@@ -172,6 +201,16 @@ def server_instance(server_config_path, mock_mqtt):
         from mcgo.server import McGoServer
 
         s = McGoServer(server_config_path)
+        yield s
+
+
+@pytest.fixture
+def multi_server_instance(multi_server_config_path, mock_mqtt):
+    """McGoServer with multi-directory config and mocked MQTT."""
+    with patch("mcgo.server.mqtt.Client", return_value=mock_mqtt):
+        from mcgo.server import McGoServer
+
+        s = McGoServer(multi_server_config_path)
         yield s
 
 

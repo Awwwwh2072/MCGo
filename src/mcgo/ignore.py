@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import re
 from pathlib import Path
 from typing import Literal, Optional
@@ -36,9 +37,9 @@ class IgnoreRules:
         if self._role is None or is_dir:
             return False
         parts = relative_path.replace("\\", "/").split("/")
-        if len(parts) < 2:
-            return False
-        if "mods" not in parts[:-1]:
+        base_is_mods = os.path.basename(os.path.normpath(self._base_dir)) == "mods"
+        is_under_mods = "mods" in parts[:-1] if len(parts) >= 2 else base_is_mods
+        if not is_under_mods:
             return False
         prefix = _BUILTIN_PREFIXES[self._role]
         return parts[-1].startswith(prefix)
