@@ -1,2 +1,17 @@
-./.claude
-./key
+# IDE / Claude
+.claude/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+dist/
+*.egg-info/
+
+# C# / .NET
+bin/
+obj/
+
+# Keys
+key

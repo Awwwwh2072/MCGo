@@ -76,6 +76,7 @@ class McGoClient:
         self._ignore = IgnoreRules(
             os.path.join(self._config_dir, self._config.ignore_file),
             self._config.sync_directory,
+            role="client",
         )
         self._remote_tree: dict = {}
         self._authenticated = False
@@ -299,7 +300,7 @@ class McGoClient:
         local = self._local_tree.scan(self._ignore)
 
         # Diff
-        to_fetch = FileTree.diff(local, payload)
+        to_fetch = FileTree.diff(local, payload, self._ignore)
 
         if not to_fetch:
             logger.info("All files up to date.")

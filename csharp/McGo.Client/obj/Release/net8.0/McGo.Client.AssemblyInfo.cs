@@ -15,7 +15,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyDescriptionAttribute(("Embeddable MQTT file sync client for McGo (protocol compatible with Python mcgo c" +
     "lient)."))]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+7727dfb685a03641e0f3c6341e3117a968a65f46")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+f5114620f1a8223d97075f19e7c3063a404ef461")]
 [assembly: System.Reflection.AssemblyProductAttribute("McGo.Client")]
 [assembly: System.Reflection.AssemblyTitleAttribute("McGo.Client")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

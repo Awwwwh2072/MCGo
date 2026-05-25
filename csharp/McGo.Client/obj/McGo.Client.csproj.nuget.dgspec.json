@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "d:\\Project\\PythonProject\\McGo\\csharp\\McGo.Client\\McGo.Client.csproj": {}
+    "D:\\Project\\PythonProject\\McGo\\csharp\\McGo.Client\\McGo.Client.csproj": {}
   },
   "projects": {
-    "d:\\Project\\PythonProject\\McGo\\csharp\\McGo.Client\\McGo.Client.csproj": {
+    "D:\\Project\\PythonProject\\McGo\\csharp\\McGo.Client\\McGo.Client.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "d:\\Project\\PythonProject\\McGo\\csharp\\McGo.Client\\McGo.Client.csproj",
+        "projectUniqueName": "D:\\Project\\PythonProject\\McGo\\csharp\\McGo.Client\\McGo.Client.csproj",
         "projectName": "McGo.Client",
-        "projectPath": "d:\\Project\\PythonProject\\McGo\\csharp\\McGo.Client\\McGo.Client.csproj",
+        "projectPath": "D:\\Project\\PythonProject\\McGo\\csharp\\McGo.Client\\McGo.Client.csproj",
         "packagesPath": "C:\\Users\\ASUS\\.nuget\\packages\\",
-        "outputPath": "d:\\Project\\PythonProject\\McGo\\csharp\\McGo.Client\\obj\\",
+        "outputPath": "D:\\Project\\PythonProject\\McGo\\csharp\\McGo.Client\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [
           "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"

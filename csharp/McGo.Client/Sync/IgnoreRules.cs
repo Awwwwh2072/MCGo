@@ -3,16 +3,31 @@ using System.Text.RegularExpressions;
 
 namespace McGo.Client.Sync;
 
+/// <summary>Server vs client built-in ignore behavior for <c>mods/</c> paths.</summary>
+public enum IgnoreRole
+{
+    Server,
+    Client,
+}
+
 /// <summary>Subset of .gitignore rules compatible with Python <c>ignore.py</c>.</summary>
 public sealed class IgnoreRules
 {
-    private readonly List<(Regex Pattern, bool Negation)> _rules = new();
-
-    public IgnoreRules(string? ignoreFilePath, string baseDir)
+    private static readonly Dictionary<IgnoreRole, string> BuiltinPrefixes = new()
     {
+        [IgnoreRole.Server] = "server-",
+        [IgnoreRole.Client] = "client-",
+    };
+
+    private readonly List<(Regex Pattern, bool Negation)> _rules = new();
+    private readonly IgnoreRole? _role;
+
+    public IgnoreRules(string? ignoreFilePath, string baseDir, IgnoreRole? role = null)
+    {
+        _role = role;
+        _ = baseDir; // reserved for future anchored rules
         if (string.IsNullOrEmpty(ignoreFilePath) || !File.Exists(ignoreFilePath))
             return;
-        _ = baseDir; // reserved for future anchored rules
         var lines = File.ReadAllLines(ignoreFilePath);
         foreach (var rawLine in lines)
         {
@@ -45,15 +60,28 @@ public sealed class IgnoreRules
 
     public bool IsIgnored(string relativePath, bool isDir = false)
     {
-        var ignored = false;
+        var ignored = IsBuiltinIgnored(relativePath, isDir);
         foreach (var (regex, negation) in _rules)
         {
             if (regex.IsMatch(relativePath))
                 ignored = !negation;
         }
 
-        _ = isDir; // Python passes is_dir for dir_only patterns; regex already encodes dir-only trailing
         return ignored;
+    }
+
+    private bool IsBuiltinIgnored(string relativePath, bool isDir)
+    {
+        if (_role is null || isDir)
+            return false;
+        var parts = relativePath.Replace('\\', '/').Split('/');
+        if (parts.Length < 2)
+            return false;
+        var dirParts = parts[..^1];
+        if (!dirParts.Contains("mods", StringComparer.Ordinal))
+            return false;
+        var prefix = BuiltinPrefixes[_role.Value];
+        return parts[^1].StartsWith(prefix, StringComparison.Ordinal);
     }
 
     private static Regex PatternToRegex(string pattern, bool dirOnly)

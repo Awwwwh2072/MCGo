@@ -36,7 +36,7 @@ public sealed class McGoClient : IAsyncDisposable
         _auth = new ClientAuth(_cfg.ClientPrivateKey);
         _log = logger ?? NullLogger.Instance;
         var ignorePath = Path.Combine(_configDir, _cfg.IgnoreFile);
-        _ignore = new IgnoreRules(ignorePath, _cfg.SyncDirectory);
+        _ignore = new IgnoreRules(ignorePath, _cfg.SyncDirectory, IgnoreRole.Client);
     }
 
     public async Task<SyncResult> SyncAsync(CancellationToken cancellationToken = default, TimeSpan? timeout = null)
@@ -429,7 +429,7 @@ public sealed class McGoClient : IAsyncDisposable
         _log.LogInformation("Received file tree: {Count} files", CountRemoteFiles(payload));
 
         var local = FileTree.Scan(_cfg.SyncDirectory, _ignore);
-        var toFetch = FileTree.Diff(local, payload);
+        var toFetch = FileTree.Diff(local, payload, _ignore);
 
         if (toFetch.Count == 0)
         {

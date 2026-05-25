@@ -57,6 +57,7 @@ class McGoServer:
         self._ignore = IgnoreRules(
             os.path.join(os.path.dirname(config_path), self._config.ignore_file),
             self._config.scan_directory,
+            role="server",
         )
         self._file_tree: dict = {}
         self._tree_lock = threading.Lock()

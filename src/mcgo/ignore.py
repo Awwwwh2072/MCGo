@@ -2,21 +2,46 @@
 
 from __future__ import annotations
 
-import fnmatch
-import os
 import re
 from pathlib import Path
-from typing import Optional
+from typing import Literal, Optional
+
+IgnoreRole = Literal["server", "client"]
+
+_BUILTIN_PREFIXES: dict[IgnoreRole, str] = {
+    "server": "server-",
+    "client": "client-",
+}
 
 
 class IgnoreRules:
     """Parses .mcgoignore files and matches paths against gitignore-style rules."""
 
-    def __init__(self, ignore_file_path: Optional[str], base_dir: str):
+    def __init__(
+        self,
+        ignore_file_path: Optional[str],
+        base_dir: str,
+        role: Optional[IgnoreRole] = None,
+    ):
         self._rules: list[tuple[re.Pattern, bool]] = []  # (pattern, is_negation)
         self._base_dir = base_dir
+        self._role: Optional[IgnoreRole] = role
         if ignore_file_path:
             self._load(ignore_file_path)
+
+    def _is_builtin_ignored(self, relative_path: str, is_dir: bool) -> bool:
+        """Role-based defaults: under a directory segment named exactly ``mods``,
+        ignore files whose basename starts with ``server-`` (server) or ``client-`` (client).
+        """
+        if self._role is None or is_dir:
+            return False
+        parts = relative_path.replace("\\", "/").split("/")
+        if len(parts) < 2:
+            return False
+        if "mods" not in parts[:-1]:
+            return False
+        prefix = _BUILTIN_PREFIXES[self._role]
+        return parts[-1].startswith(prefix)
 
     def _load(self, path: str) -> None:
         p = Path(path)
@@ -129,7 +154,7 @@ class IgnoreRules:
         """Check whether a relative path should be ignored.
         relative_path uses forward slashes and is relative to base_dir.
         """
-        ignored = False
+        ignored = self._is_builtin_ignored(relative_path, is_dir)
         for regex, negation in self._rules:
             if regex.match(relative_path):
                 ignored = not negation

@@ -96,6 +96,17 @@ Client                              Server
 
 服务端同步目录下的 `clientmods/` 在客户端对应为 `sync_directory/mods/`：比对哈希时使用该映射，下载时仍向服务端请求 `clientmods/...` 路径，文件写入本地 `mods/...`。其他路径仍为一对一同步。
 
+### 内置忽略规则（`mods` 目录）
+
+除 `.mcgoignore` 外，程序按角色附带一层默认规则（仍可用 `.mcgoignore` 中的模式覆盖，例如 `!mods/server-keep.jar` 取反）。**仅当路径中某一目录段名为 `mods`（精确匹配，不是 `clientmods` 等子串）且当前节点为文件时生效。**
+
+| 角色 | 默认忽略 |
+|------|----------|
+| 服务端 | `mods/` 目录树内，文件名为 `server-` 前缀的文件（不扫描、不发布到文件树；`clientmods/` 不受影响） |
+| 客户端 | `mods/` 目录树内，文件名为 `client-` 前缀的文件（本地扫描与与远程对比时均跳过，避免被判定为缺失而下载） |
+
+示例：`pack/mods/foo/server-bar.jar` 会被服务端忽略；`clientmods/server-bar.jar` 仍由服务端发布。Python 客户端与 C# `McGo.Client` 行为一致。
+
 ## C# 嵌入客户端（.NET 8）
 
 仓库内提供原生类库 [`csharp/McGo.Client/McGo.Client.csproj`](csharp/McGo.Client/McGo.Client.csproj)，协议与 Python 客户端一致，适合在 C# 宿主中直接引用（无需 Python 运行时）。
@@ -164,7 +175,7 @@ var result = await client.SyncAsync(cancellationToken: ct, timeout: TimeSpan.Fro
 
 ## .mcgoignore 规则
 
-兼容 gitignore 语法子集：
+与上文「内置忽略规则」叠加：先应用角色默认规则，再按文件中自上而下逐条匹配（含 `!` 取反）。兼容 gitignore 语法子集：
 
 ```gitignore
 # 注释

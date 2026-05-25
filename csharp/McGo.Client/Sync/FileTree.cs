@@ -117,7 +117,10 @@ public static class FileTree
             directories.Distinct(StringComparer.Ordinal).OrderBy(s => s, StringComparer.Ordinal).ToList());
     }
 
-    public static List<FetchEntry> Diff(FileTreeScanResult local, IReadOnlyDictionary<string, object?> remoteTree)
+    public static List<FetchEntry> Diff(
+        FileTreeScanResult local,
+        IReadOnlyDictionary<string, object?> remoteTree,
+        IgnoreRules? ignoreRules = null)
     {
         var toFetch = new List<FetchEntry>();
         if (!remoteTree.TryGetValue("files", out var filesObj) || filesObj is not Dictionary<string, object?> remoteFiles)
@@ -128,6 +131,8 @@ public static class FileTree
         foreach (var (remotePath, remoteInfoObj) in remoteFiles)
         {
             var localPath = PathMapping.MapRemoteToLocal(remotePath);
+            if (ignoreRules?.IsIgnored(localPath, isDir: false) == true)
+                continue;
             var remoteSha = GetSha256(remoteInfoObj);
             if (!localFiles.TryGetValue(localPath, out var localInfo))
             {

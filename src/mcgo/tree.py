@@ -112,7 +112,11 @@ class FileTree:
         return remote_path
 
     @staticmethod
-    def diff(local_tree: dict, remote_tree: dict) -> list[dict]:
+    def diff(
+        local_tree: dict,
+        remote_tree: dict,
+        ignore_rules: Optional[IgnoreRules] = None,
+    ) -> list[dict]:
         """Compare local tree against remote tree.
         Returns a list of entries that need to be downloaded:
         [{"server_path": str, "local_path": str, "reason": "missing"|"changed"}, ...]
@@ -122,6 +126,8 @@ class FileTree:
 
         for path, remote_info in remote_files.items():
             local_path = FileTree.map_remote_to_local(path)
+            if ignore_rules and ignore_rules.is_ignored(local_path, is_dir=False):
+                continue
             local_info = local_tree.get("files", {}).get(local_path)
             if local_info is None:
                 to_fetch.append({"server_path": path, "local_path": local_path, "reason": "missing"})
